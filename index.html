@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SAT Vocab Deck</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- PDF.js (stable) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+  </script>
+
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #475569;
+      --cloud: #f8fafc;
+      --accent: #f97316;
+      --accent-2: #0ea5e9;
+      --paper: rgba(255, 255, 255, 0.85);
+    }
+
+    body {
+      font-family: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(14, 165, 233, 0.15), transparent 45%),
+        radial-gradient(circle at 80% 10%, rgba(249, 115, 22, 0.2), transparent 40%),
+        radial-gradient(circle at 10% 80%, rgba(244, 63, 94, 0.15), transparent 45%),
+        linear-gradient(120deg, #f8fafc 0%, #eef2ff 35%, #ecfeff 100%);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    .title {
+      font-family: "Fraunces", ui-serif, Georgia, serif;
+    }
+
+    .card-surface {
+      background: var(--paper);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(10px);
+    }
+
+    .deck-card {
+      min-height: 250px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .deck-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 26px 70px rgba(15, 23, 42, 0.18);
+    }
+  </style>
+</head>
+
+<body>
+  <main class="max-w-6xl mx-auto px-6 py-10 space-y-8">
+    <header class="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div class="space-y-3">
+        <p class="text-sm uppercase tracking-[0.3em] text-slate-500">SAT 1000</p>
+        <h1 class="title text-4xl md:text-5xl font-semibold">Vocab Deck Lab</h1>
+        <p class="text-slate-600 max-w-xl">
+          Auto-build a full flashcard deck from the SparkNotes SAT list. Flip, shuffle,
+          and study the entire PDF in a Quizlet-style flow.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button
+          id="loadDefault"
+          class="rounded-full bg-slate-900 text-white px-5 py-2 text-sm font-semibold hover:bg-slate-800"
+        >
+          Load built-in PDF
+        </button>
+        <button
+          id="pickPdf"
+          class="rounded-full border border-slate-300 bg-white/70 px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+        >
+          Import another PDF
+        </button>
+        <input id="pdfFile" type="file" accept="application/pdf" class="hidden" />
+      </div>
+    </header>
+
+    <section class="grid gap-6 lg:grid-cols-[2fr,1fr]">
+      <div class="card-surface rounded-[28px] p-6 md:p-8 space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Deck Status</p>
+            <p id="status" class="text-sm text-slate-600">Ready to load the deck.</p>
+          </div>
+          <div class="text-sm font-semibold text-slate-700">
+            <span id="progress">0 / 0</span>
+          </div>
+        </div>
+
+        <div
+          id="deckCard"
+          class="deck-card rounded-3xl bg-white border border-slate-200 p-6 md:p-8 flex flex-col justify-between gap-4"
+        >
+          <div class="space-y-2">
+            <p id="cardLabel" class="text-xs uppercase tracking-[0.3em] text-slate-400">Front</p>
+            <h2 id="cardTerm" class="title text-3xl md:text-4xl font-semibold">Load a deck</h2>
+            <p id="cardPos" class="text-sm text-slate-500"></p>
+          </div>
+          <div class="space-y-3 text-slate-700">
+            <p id="cardMeaning" class="text-lg"></p>
+            <p id="cardSentence" class="text-sm italic text-slate-500"></p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <button
+            id="prevCard"
+            class="rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+          >
+            Prev
+          </button>
+          <button
+            id="flipCard"
+            class="rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+          >
+            Flip
+          </button>
+          <button
+            id="nextCard"
+            class="rounded-full border border-slate-300 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-white"
+          >
+            Next
+          </button>
+          <button
+            id="shuffleDeck"
+            class="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-600"
+          >
+            Shuffle
+          </button>
+        </div>
+
+        <p class="text-xs text-slate-400">
+          Tip: Space flips. Left/Right arrows navigate. Use search to jump quickly.
+        </p>
+      </div>
+
+      <aside class="space-y-5">
+        <div class="card-surface rounded-3xl p-5">
+          <label class="text-xs uppercase tracking-[0.3em] text-slate-400">Search</label>
+          <input
+            id="search"
+            type="text"
+            placeholder="Find a word, meaning, or sentence..."
+            class="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-slate-400 focus:outline-none"
+          />
+          <p class="mt-3 text-xs text-slate-500">
+            Filter updates the deck and list instantly.
+          </p>
+        </div>
+
+        <div class="card-surface rounded-3xl p-5">
+          <div class="flex items-center justify-between">
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Card List</p>
+            <span id="listCount" class="text-xs text-slate-500">0 cards</span>
+          </div>
+          <div
+            id="list"
+            class="mt-4 max-h-[420px] space-y-2 overflow-auto pr-1 text-sm"
+          ></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const DEFAULT_PDF = "sat_vocab_with_sentences_plaintext.pdf";
+
+    function normalizePos(posRaw) {
+      const p = (posRaw || "").toLowerCase().replace(/\s+/g, "");
+      if (p.startsWith("v")) return "verb";
+      if (p.startsWith("n")) return "noun";
+      if (p.startsWith("adj")) return "adjective";
+      if (p.startsWith("adv")) return "adverb";
+      return posRaw.trim();
+    }
+
+    function parseSparknotesPlaintext(rawText) {
+      let text = (rawText || "")
+        .replace(/\r/g, "")
+        .replace(/\u00a0/g, " ")
+        .replace(/[ \t]+/g, " ")
+        .trim();
+
+      const START = /(^|[\s\n])([A-Za-z][A-Za-z-]{2,})(?:\s+\d+\.)?\s*\((v\.|n\.|adj\.|adv\.)\)/g;
+
+      const starts = [];
+      let m;
+      while ((m = START.exec(text)) !== null) {
+        starts.push({ idx: m.index + (m[1] ? m[1].length : 0), term: m[2], posRaw: m[3] });
+      }
+
+      const normalizePosLocal = (p) => {
+        const x = (p || "").toLowerCase();
+        if (x.startsWith("v")) return "verb";
+        if (x.startsWith("n")) return "noun";
+        if (x.startsWith("adj")) return "adjective";
+        if (x.startsWith("adv")) return "adverb";
+        return p;
+      };
+
+      function splitMeaningAndSentence(rest) {
+        for (let i = 0; i < rest.length; i++) {
+          if (rest[i] !== "(") continue;
+
+          let depth = 0;
+          for (let j = i; j < rest.length; j++) {
+            if (rest[j] === "(") depth++;
+            else if (rest[j] === ")") depth--;
+
+            if (depth === 0) {
+              const inside = rest.slice(i + 1, j).trim();
+              const looksLikeSentence =
+                inside.length >= 12 &&
+                /^[A-Z]/.test(inside) &&
+                /[.!?]$/.test(inside);
+
+              if (looksLikeSentence) {
+                const before = rest.slice(0, i).trim();
+                const after = rest.slice(j + 1).trim();
+                return {
+                  meaning: (before + " " + after).replace(/\s+/g, " ").trim(),
+                  sentence: inside
+                };
+              }
+              break;
+            }
+          }
+        }
+        return { meaning: rest.replace(/\s+/g, " ").trim(), sentence: "" };
+      }
+
+      const cards = [];
+      const seen = new Set();
+
+      for (let i = 0; i < starts.length; i++) {
+        const a = starts[i].idx;
+        const b = (i + 1 < starts.length) ? starts[i + 1].idx : text.length;
+        const chunk = text.slice(a, b).replace(/\s+/g, " ").trim();
+
+        const mm = chunk.match(/^([A-Za-z][A-Za-z-]{2,})(?:\s+\d+\.)?\s*\((v\.|n\.|adj\.|adv\.)\)\s*(.*)$/);
+        if (!mm) continue;
+
+        const term = mm[1].trim();
+        const pos = normalizePosLocal(mm[2]);
+        let rest = (mm[3] || "").trim();
+
+        if (/\b1\.\s*\((?:v\.|n\.|adj\.|adv\.)\)/.test(rest)) {
+          const senseRe = /(\b\d+\.\s*\((?:v\.|n\.|adj\.|adv\.)\)\s*.*?)(?=\b\d+\.\s*\(|$)/g;
+          let sm;
+          while ((sm = senseRe.exec(rest)) !== null) {
+            const sense = sm[1].trim();
+            const smm = sense.match(/^\d+\.\s*\((v\.|n\.|adj\.|adv\.)\)\s*(.*)$/);
+            if (!smm) continue;
+            const spos = normalizePosLocal(smm[1]);
+            const srest = (smm[2] || "").trim();
+            const { meaning, sentence } = splitMeaningAndSentence(srest);
+            const key = `${term.toLowerCase()}||${spos}||${meaning}||${sentence}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            cards.push({ term, pos: spos, meaning, sentence });
+          }
+          continue;
+        }
+
+        const { meaning, sentence } = splitMeaningAndSentence(rest);
+        const key = `${term.toLowerCase()}||${pos}||${meaning}||${sentence}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        cards.push({ term, pos, meaning, sentence });
+      }
+
+      return cards;
+    }
+
+    async function extractTextFromPdfData(data) {
+      const pdf = await pdfjsLib.getDocument({
+        data,
+        disableStream: true,
+        disableAutoFetch: true
+      }).promise;
+
+      function kmeans2(xs) {
+        xs = xs.slice().sort((a, b) => a - b);
+        if (xs.length < 10) return null;
+
+        let m1 = xs[Math.floor(xs.length * 0.25)];
+        let m2 = xs[Math.floor(xs.length * 0.75)];
+
+        for (let iter = 0; iter < 12; iter++) {
+          let s1 = 0, c1 = 0, s2 = 0, c2 = 0;
+          for (const x of xs) {
+            if (Math.abs(x - m1) <= Math.abs(x - m2)) { s1 += x; c1++; }
+            else { s2 += x; c2++; }
+          }
+          if (c1 === 0 || c2 === 0) break;
+          const nm1 = s1 / c1;
+          const nm2 = s2 / c2;
+          if (Math.abs(nm1 - m1) < 0.01 && Math.abs(nm2 - m2) < 0.01) break;
+          m1 = nm1; m2 = nm2;
+        }
+        const leftMean = Math.min(m1, m2);
+        const rightMean = Math.max(m1, m2);
+
+        if (rightMean - leftMean < 40) return null;
+
+        return (leftMean + rightMean) / 2;
+      }
+
+      function buildColumnText(colItems) {
+        const byLine = new Map();
+        for (const it of colItems) {
+          const yKey = Math.round(it.y / 4) * 4;
+          if (!byLine.has(yKey)) byLine.set(yKey, []);
+          byLine.get(yKey).push(it);
+        }
+
+        const ys = [...byLine.keys()].sort((a, b) => b - a);
+        const lines = [];
+
+        for (const y of ys) {
+          const parts = byLine.get(y)
+            .sort((a, b) => a.x - b.x)
+            .map(p => p.str);
+
+          let line = parts.join(" ");
+          line = line
+            .replace(/\s+/g, " ")
+            .replace(/\s+([,.;:!?])/g, "$1")
+            .replace(/\(\s+/g, "(")
+            .replace(/\s+\)/g, ")")
+            .trim();
+
+          if (line) lines.push(line);
+        }
+        return lines.join("\n");
+      }
+
+      function isSingleColumn(items, pageWidth) {
+        const byLine = new Map();
+        for (const it of items) {
+          const yKey = Math.round(it.y / 4) * 4;
+          if (!byLine.has(yKey)) byLine.set(yKey, []);
+          byLine.get(yKey).push(it);
+        }
+
+        const widths = [];
+        for (const lineItems of byLine.values()) {
+          const xs = lineItems.map(i => i.x);
+          if (!xs.length) continue;
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+          widths.push(maxX - minX);
+        }
+        if (!widths.length) return true;
+
+        const wideLines = widths.filter(w => w >= pageWidth * 0.6).length;
+        return (wideLines / widths.length) >= 0.3;
+      }
+
+      let full = "";
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const tc = await page.getTextContent({ normalizeWhitespace: true });
+
+        const items = tc.items
+          .map(it => ({
+            str: (it.str || "").trim(),
+            x: it.transform[4],
+            y: it.transform[5],
+          }))
+          .filter(it => it.str);
+
+        const xs = items
+          .filter(it => it.str.length >= 3)
+          .map(it => it.x);
+
+        const viewport = page.getViewport({ scale: 1.0 });
+        const singleColumn = isSingleColumn(items, viewport.width);
+
+        let pageText = "";
+        if (singleColumn) {
+          pageText = buildColumnText(items);
+        } else {
+          let splitX = kmeans2(xs);
+          if (splitX == null) {
+            splitX = viewport.width * 0.5;
+          }
+
+          const left = items.filter(it => it.x < splitX);
+          const right = items.filter(it => it.x >= splitX);
+
+          pageText = buildColumnText(left) + "\n" + buildColumnText(right);
+        }
+
+        pageText = pageText.replace(/-\s*\n\s*/g, "");
+        full += pageText + "\n\n";
+
+        if (pageNum % 2 === 0) await new Promise(r => setTimeout(r, 0));
+      }
+
+      return full;
+    }
+
+    const loadDefault = document.getElementById("loadDefault");
+    const pickPdf = document.getElementById("pickPdf");
+    const pdfFile = document.getElementById("pdfFile");
+    const status = document.getElementById("status");
+    const progress = document.getElementById("progress");
+    const list = document.getElementById("list");
+    const listCount = document.getElementById("listCount");
+    const search = document.getElementById("search");
+
+    const cardLabel = document.getElementById("cardLabel");
+    const cardTerm = document.getElementById("cardTerm");
+    const cardPos = document.getElementById("cardPos");
+    const cardMeaning = document.getElementById("cardMeaning");
+    const cardSentence = document.getElementById("cardSentence");
+
+    const prevCard = document.getElementById("prevCard");
+    const nextCard = document.getElementById("nextCard");
+    const flipCard = document.getElementById("flipCard");
+    const shuffleDeck = document.getElementById("shuffleDeck");
+
+    let deck = [];
+    let filteredDeck = [];
+    let currentIndex = 0;
+    let isFlipped = false;
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function updateProgress() {
+      progress.textContent = `${filteredDeck.length ? currentIndex + 1 : 0} / ${filteredDeck.length}`;
+      listCount.textContent = `${filteredDeck.length} cards`;
+    }
+
+    function renderCard() {
+      if (!filteredDeck.length) {
+        cardLabel.textContent = "Front";
+        cardTerm.textContent = "Load a deck";
+        cardPos.textContent = "";
+        cardMeaning.textContent = "Your flashcards will appear here.";
+        cardSentence.textContent = "";
+        updateProgress();
+        return;
+      }
+
+      const card = filteredDeck[currentIndex];
+      if (!card) return;
+
+      cardLabel.textContent = isFlipped ? "Back" : "Front";
+      cardTerm.textContent = card.term;
+      cardPos.textContent = card.pos ? card.pos.toUpperCase() : "";
+      cardMeaning.textContent = isFlipped ? card.meaning : "";
+      cardSentence.textContent = isFlipped
+        ? (card.sentence ? `"${card.sentence}"` : "No example sentence.")
+        : "";
+      updateProgress();
+    }
+
+    function renderList() {
+      list.innerHTML = "";
+      if (!filteredDeck.length) return;
+
+      const frag = document.createDocumentFragment();
+      filteredDeck.forEach((card, idx) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = [
+          "w-full text-left rounded-xl px-3 py-2",
+          idx === currentIndex ? "bg-slate-900 text-white" : "bg-white/70 text-slate-700 hover:bg-white"
+        ].join(" ");
+        item.textContent = `${card.term} — ${card.meaning.slice(0, 80)}${card.meaning.length > 80 ? "..." : ""}`;
+        item.addEventListener("click", () => {
+          currentIndex = idx;
+          isFlipped = false;
+          renderCard();
+          renderList();
+        });
+        frag.appendChild(item);
+      });
+      list.appendChild(frag);
+    }
+
+    function applyFilter(query) {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        filteredDeck = deck.slice();
+      } else {
+        filteredDeck = deck.filter(card => {
+          return [
+            card.term,
+            card.pos,
+            card.meaning,
+            card.sentence
+          ].join(" ").toLowerCase().includes(q);
+        });
+      }
+      currentIndex = 0;
+      isFlipped = false;
+      renderCard();
+      renderList();
+    }
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    async function buildDeckFromData(data, sourceLabel) {
+      setStatus("Extracting text...");
+      const text = await extractTextFromPdfData(data);
+      setStatus("Parsing cards...");
+      const cards = parseSparknotesPlaintext(text);
+      deck = cards;
+      filteredDeck = cards.slice();
+      currentIndex = 0;
+      isFlipped = false;
+      setStatus(`Loaded ${cards.length} cards from ${sourceLabel}.`);
+      renderCard();
+      renderList();
+    }
+
+    loadDefault.addEventListener("click", async () => {
+      try {
+        setStatus("Loading built-in PDF...");
+        const res = await fetch(DEFAULT_PDF);
+        if (!res.ok) throw new Error("PDF fetch failed");
+        const data = await res.arrayBuffer();
+        await buildDeckFromData(data, DEFAULT_PDF);
+      } catch (err) {
+        console.error(err);
+        setStatus("Failed to load the built-in PDF.");
+      }
+    });
+
+    pickPdf.addEventListener("click", () => {
+      pdfFile.value = "";
+      pdfFile.click();
+    });
+
+    pdfFile.addEventListener("change", async () => {
+      const file = pdfFile.files && pdfFile.files[0];
+      if (!file) return;
+      try {
+        setStatus("Loading PDF...");
+        const data = await file.arrayBuffer();
+        await buildDeckFromData(data, file.name);
+      } catch (err) {
+        console.error(err);
+        setStatus("Import failed. Check the console for details.");
+      }
+    });
+
+    prevCard.addEventListener("click", () => {
+      if (!filteredDeck.length) return;
+      currentIndex = (currentIndex - 1 + filteredDeck.length) % filteredDeck.length;
+      isFlipped = false;
+      renderCard();
+      renderList();
+    });
+
+    nextCard.addEventListener("click", () => {
+      if (!filteredDeck.length) return;
+      currentIndex = (currentIndex + 1) % filteredDeck.length;
+      isFlipped = false;
+      renderCard();
+      renderList();
+    });
+
+    flipCard.addEventListener("click", () => {
+      if (!filteredDeck.length) return;
+      isFlipped = !isFlipped;
+      renderCard();
+    });
+
+    shuffleDeck.addEventListener("click", () => {
+      if (!filteredDeck.length) return;
+      shuffle(filteredDeck);
+      currentIndex = 0;
+      isFlipped = false;
+      renderCard();
+      renderList();
+    });
+
+    search.addEventListener("input", (e) => {
+      applyFilter(e.target.value);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+      if (e.key === " ") {
+        e.preventDefault();
+        flipCard.click();
+      } else if (e.key === "ArrowRight") {
+        nextCard.click();
+      } else if (e.key === "ArrowLeft") {
+        prevCard.click();
+      }
+    });
+  </script>
+</body>
+</html>
