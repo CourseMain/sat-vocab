@@ -215,35 +215,77 @@
         return p;
       };
 
-      function splitMeaningAndSentence(rest) {
-        for (let i = 0; i < rest.length; i++) {
-          if (rest[i] !== "(") continue;
+      function splitMeaningAndSentences(rest, defaultPos) {
+        const results = [];
+        let remaining = rest.trim();
+        let lastMeaning = "";
+        let lastPos = defaultPos || "";
 
-          let depth = 0;
-          for (let j = i; j < rest.length; j++) {
-            if (rest[j] === "(") depth++;
-            else if (rest[j] === ")") depth--;
+        function extractPosFromMeaning(text) {
+          const m = text.match(/^\s*(\d+\.\s*)?\(?\s*(v\.|n\.|adj\.|adv\.)\s*\)?\s*/i);
+          if (!m) return { pos: "", cleaned: text };
+          const posRaw = m[2] || "";
+          const cleaned = text.replace(m[0], "");
+          return { pos: normalizePos(posRaw), cleaned };
+        }
 
-            if (depth === 0) {
-              const inside = rest.slice(i + 1, j).trim();
-              const looksLikeSentence =
-                inside.length >= 12 &&
-                /^[A-Z]/.test(inside) &&
-                /[.!?]$/.test(inside);
+        function cleanMeaning(text) {
+          const { pos, cleaned } = extractPosFromMeaning(text);
+          if (pos) lastPos = pos;
+          return cleaned
+            .replace(/^\d+\.\s*\(?\s*(v\.|n\.|adj\.|adv\.)\s*\)?\s*/i, "")
+            .replace(/^\(\s*(v\.|n\.|adj\.|adv\.)\s*\)\s*/i, "")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
 
-              if (looksLikeSentence) {
-                const before = rest.slice(0, i).trim();
-                const after = rest.slice(j + 1).trim();
-                return {
-                  meaning: (before + " " + after).replace(/\s+/g, " ").trim(),
-                  sentence: inside
-                };
+        while (remaining) {
+          let found = false;
+
+          for (let i = 0; i < remaining.length; i++) {
+            if (remaining[i] !== "(") continue;
+
+            let depth = 0;
+            for (let j = i; j < remaining.length; j++) {
+              if (remaining[j] === "(") depth++;
+              else if (remaining[j] === ")") depth--;
+
+              if (depth === 0) {
+                const inside = remaining.slice(i + 1, j).trim();
+                const looksLikeSentence =
+                  inside.length >= 12 &&
+                  /^[A-Z]/.test(inside) &&
+                  /[.!?][\"”’']?$/.test(inside);
+
+                if (looksLikeSentence) {
+                  const meaningRaw = remaining.slice(0, i).trim();
+                  const meaning = cleanMeaning(meaningRaw || lastMeaning || "");
+                  results.push({ meaning, sentence: inside, pos: lastPos || defaultPos });
+                  lastMeaning = meaning || lastMeaning;
+                  remaining = remaining.slice(j + 1).trim();
+                  found = true;
+                }
+                break;
               }
-              break;
             }
+            if (found) break;
+          }
+
+          if (!found) break;
+        }
+
+        if (!results.length) {
+          return [{ meaning: cleanMeaning(remaining), sentence: "", pos: lastPos || defaultPos }];
+        }
+
+        if (remaining) {
+          const tail = cleanMeaning(remaining);
+          if (tail) {
+            results.push({ meaning: tail, sentence: "", pos: lastPos || defaultPos });
           }
         }
-        return { meaning: rest.replace(/\s+/g, " ").trim(), sentence: "" };
+
+        return results;
       }
 
       const cards = [];
@@ -270,21 +312,26 @@
             if (!smm) continue;
             const spos = normalizePosLocal(smm[1]);
             const srest = (smm[2] || "").trim();
-            const { meaning, sentence } = splitMeaningAndSentence(srest);
-            const key = `${term.toLowerCase()}||${spos}||${meaning}||${sentence}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            cards.push({ term, pos: spos, meaning, sentence });
+            const parts = splitMeaningAndSentences(srest, spos);
+            for (const part of parts) {
+              const usePos = part.pos || spos;
+              const key = `${term.toLowerCase()}||${usePos}||${part.meaning}||${part.sentence}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              cards.push({ term, pos: usePos, meaning: part.meaning, sentence: part.sentence });
+            }
           }
           continue;
         }
 
-        const { meaning, sentence } = splitMeaningAndSentence(rest);
-        const key = `${term.toLowerCase()}||${pos}||${meaning}||${sentence}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-
-        cards.push({ term, pos, meaning, sentence });
+        const parts = splitMeaningAndSentences(rest, pos);
+        for (const part of parts) {
+          const usePos = part.pos || pos;
+          const key = `${term.toLowerCase()}||${usePos}||${part.meaning}||${part.sentence}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          cards.push({ term, pos: usePos, meaning: part.meaning, sentence: part.sentence });
+        }
       }
 
       return cards;
