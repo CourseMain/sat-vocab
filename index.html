@@ -565,10 +565,10 @@
 
     function cardSpeechText(card) {
       return [
-        card.term,
-        card.pos,
         card.meaning,
-        card.sentence ? `Example: ${card.sentence}` : ""
+        card.sentence ? `Example: ${card.sentence}` : "",
+        `The word is ${card.term}`,
+        card.pos
       ].filter(Boolean).join(". ");
     }
 
@@ -606,8 +606,13 @@
       if (!filteredDeck.length) return;
       stopSpeaking("Starting…");
       speechMode = "card";
+      isFlipped = true;
+      renderCard();
       setSpeechStatus(`Speaking ${filteredDeck[currentIndex].term} at ${speechRate.value}×`);
-      speakOne(filteredDeck[currentIndex]);
+      // Let the definition side render before speech begins.
+      window.setTimeout(() => {
+        if (speechMode === "card") speakOne(filteredDeck[currentIndex]);
+      }, 250);
     }
 
     function speakDeckStep() {
@@ -618,15 +623,19 @@
         return;
       }
       const card = filteredDeck[currentIndex];
-      isFlipped = false;
+      isFlipped = true;
       renderCard();
       renderList();
       setSpeechStatus(`Reading ${currentIndex + 1} of ${filteredDeck.length}: ${card.term}`);
-      speakOne(card, () => {
+      // Reveal the answer before reading it aloud.
+      window.setTimeout(() => {
         if (speechMode !== "deck") return;
-        currentIndex += 1;
-        speakDeckStep();
-      });
+        speakOne(card, () => {
+          if (speechMode !== "deck") return;
+          currentIndex += 1;
+          speakDeckStep();
+        });
+      }, 250);
     }
 
     function startDeckSpeech() {
