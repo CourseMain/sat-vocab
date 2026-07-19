@@ -106,7 +106,10 @@
 
         <div
           id="deckCard"
-          class="deck-card rounded-3xl bg-white border border-slate-200 p-6 md:p-8 flex flex-col justify-between gap-4"
+          class="deck-card cursor-pointer rounded-3xl bg-white border border-slate-200 p-6 md:p-8 flex flex-col justify-between gap-4"
+          role="button"
+          tabindex="0"
+          aria-label="Flip flashcard"
         >
           <div class="space-y-2">
             <p id="cardLabel" class="text-xs uppercase tracking-[0.3em] text-slate-400">Front</p>
@@ -116,6 +119,33 @@
           <div class="space-y-3 text-slate-700">
             <p id="cardMeaning" class="text-lg"></p>
             <p id="cardSentence" class="text-sm italic text-slate-500"></p>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white/70 p-4 space-y-3" aria-label="Text to speech controls">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Text to speech</p>
+              <p id="speechStatus" class="text-sm text-slate-600">Ready</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <label for="speechRate" class="text-sm text-slate-600">Speed</label>
+              <select id="speechRate" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="0.5">0.5×</option>
+                <option value="0.75">0.75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1.25×</option>
+                <option value="1.5">1.5×</option>
+                <option value="1.75">1.75×</option>
+                <option value="2">2×</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="speakCard" class="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-600">🔊 Speak card</button>
+            <button id="speakDeck" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">▶ Read deck</button>
+            <button id="pauseSpeech" class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">Pause</button>
+            <button id="stopSpeech" class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">Stop</button>
           </div>
         </div>
 
@@ -481,16 +511,24 @@
     const cardPos = document.getElementById("cardPos");
     const cardMeaning = document.getElementById("cardMeaning");
     const cardSentence = document.getElementById("cardSentence");
+    const deckCard = document.getElementById("deckCard");
 
     const prevCard = document.getElementById("prevCard");
     const nextCard = document.getElementById("nextCard");
     const flipCard = document.getElementById("flipCard");
     const shuffleDeck = document.getElementById("shuffleDeck");
+    const speakCard = document.getElementById("speakCard");
+    const speakDeck = document.getElementById("speakDeck");
+    const pauseSpeech = document.getElementById("pauseSpeech");
+    const stopSpeech = document.getElementById("stopSpeech");
+    const speechRate = document.getElementById("speechRate");
+    const speechStatus = document.getElementById("speechStatus");
 
     let deck = [];
     let filteredDeck = [];
     let currentIndex = 0;
     let isFlipped = false;
+    let speechMode = "stopped";
 
     function setStatus(message) {
       status.textContent = message;
@@ -523,6 +561,83 @@
         ? (card.sentence ? `"${card.sentence}"` : "No example sentence.")
         : "";
       updateProgress();
+    }
+
+    function cardSpeechText(card) {
+      return [
+        card.term,
+        card.pos,
+        card.meaning,
+        card.sentence ? `Example: ${card.sentence}` : ""
+      ].filter(Boolean).join(". ");
+    }
+
+    function setSpeechStatus(message) {
+      speechStatus.textContent = message;
+    }
+
+    function stopSpeaking(message = "Stopped") {
+      speechMode = "stopped";
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      pauseSpeech.textContent = "Pause";
+      setSpeechStatus(message);
+    }
+
+    function speakOne(card, onEnd) {
+      const utterance = new SpeechSynthesisUtterance(cardSpeechText(card));
+      utterance.rate = Number(speechRate.value) || 1;
+      utterance.onend = onEnd || (() => {
+        speechMode = "stopped";
+        setSpeechStatus("Finished");
+      });
+      utterance.onerror = event => {
+        if (["canceled", "interrupted"].includes(event.error)) return;
+        speechMode = "stopped";
+        setSpeechStatus(`Speech error: ${event.error}`);
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function speakCurrentCard() {
+      if (!("speechSynthesis" in window)) {
+        setSpeechStatus("Text to speech is not supported by this browser.");
+        return;
+      }
+      if (!filteredDeck.length) return;
+      stopSpeaking("Starting…");
+      speechMode = "card";
+      setSpeechStatus(`Speaking ${filteredDeck[currentIndex].term} at ${speechRate.value}×`);
+      speakOne(filteredDeck[currentIndex]);
+    }
+
+    function speakDeckStep() {
+      if (speechMode !== "deck") return;
+      if (currentIndex >= filteredDeck.length) {
+        currentIndex = Math.max(0, filteredDeck.length - 1);
+        stopSpeaking("Finished reading the deck");
+        return;
+      }
+      const card = filteredDeck[currentIndex];
+      isFlipped = false;
+      renderCard();
+      renderList();
+      setSpeechStatus(`Reading ${currentIndex + 1} of ${filteredDeck.length}: ${card.term}`);
+      speakOne(card, () => {
+        if (speechMode !== "deck") return;
+        currentIndex += 1;
+        speakDeckStep();
+      });
+    }
+
+    function startDeckSpeech() {
+      if (!("speechSynthesis" in window)) {
+        setSpeechStatus("Text to speech is not supported by this browser.");
+        return;
+      }
+      if (!filteredDeck.length) return;
+      stopSpeaking("Starting…");
+      speechMode = "deck";
+      speakDeckStep();
     }
 
     function renderList() {
@@ -592,15 +707,23 @@
     }
 
     loadDefault.addEventListener("click", async () => {
+      // Browsers do not allow a file:// page to fetch a neighbouring local PDF.
+      // Fall back to the file picker instead of showing a misleading load error.
+      if (location.protocol === "file:") {
+        setStatus("Select sat_vocab_with_sentences_plaintext.pdf from this folder to load the built-in deck.");
+        pdfFile.value = "";
+        pdfFile.click();
+        return;
+      }
       try {
         setStatus("Loading built-in PDF...");
         const res = await fetch(DEFAULT_PDF);
-        if (!res.ok) throw new Error("PDF fetch failed");
+        if (!res.ok) throw new Error(`PDF fetch failed (${res.status})`);
         const data = await res.arrayBuffer();
         await buildDeckFromData(data, DEFAULT_PDF);
       } catch (err) {
         console.error(err);
-        setStatus("Failed to load the built-in PDF.");
+        setStatus("Could not fetch the built-in PDF. Choose it manually, or open this folder through a local web server.");
       }
     });
 
@@ -642,6 +765,30 @@
       if (!filteredDeck.length) return;
       isFlipped = !isFlipped;
       renderCard();
+    });
+
+    deckCard.addEventListener("click", () => flipCard.click());
+    deckCard.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        flipCard.click();
+      }
+    });
+
+    speakCard.addEventListener("click", speakCurrentCard);
+    speakDeck.addEventListener("click", startDeckSpeech);
+    stopSpeech.addEventListener("click", () => stopSpeaking());
+    pauseSpeech.addEventListener("click", () => {
+      if (!("speechSynthesis" in window) || speechMode === "stopped") return;
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        pauseSpeech.textContent = "Pause";
+        setSpeechStatus("Resumed");
+      } else {
+        window.speechSynthesis.pause();
+        pauseSpeech.textContent = "Resume";
+        setSpeechStatus("Paused");
+      }
     });
 
     shuffleDeck.addEventListener("click", () => {
